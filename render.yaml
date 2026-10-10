@@ -1,0 +1,49 @@
+# =============================================================================
+# WATCHGRID — Render Blueprint Infrastructure Specification
+# https://render.com/docs/blueprint-spec
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # 1. FastAPI Ingestion Gateway & Autonomous Threat Engine (SQLite)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: watchgrid-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: sh -c "python seed.py && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:///./watchgrid.db
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "1440"
+      - key: AGENT_API_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: "*"
+
+  # ---------------------------------------------------------------------------
+  # 2. Next.js 14 SOC Operations Console
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: watchgrid-frontend
+    runtime: node
+    rootDir: frontend
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NEXT_PUBLIC_API_URL
+        # Replace with your actual backend Render URL (e.g. https://watchgrid-backend.onrender.com)
+        sync: false

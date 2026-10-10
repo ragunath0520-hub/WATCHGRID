@@ -182,64 +182,72 @@ def seed_database():
             }
         ]
 
-        print("[*] Seeding security events...")
-        for evt_data in events_to_seed:
-            evt = models.SecurityEvent(**evt_data)
-            db.add(evt)
+        existing_events_count = db.query(models.SecurityEvent).count()
+        if existing_events_count == 0:
+            print("[*] Seeding security events...")
+            for evt_data in events_to_seed:
+                evt = models.SecurityEvent(**evt_data)
+                db.add(evt)
+        else:
+            print(f"[*] Security events already present ({existing_events_count} events), skipping event seeding.")
 
         # 4. Seed Threats & Correlated Alerts
-        print("[*] Seeding correlated threats and alerts...")
-        threat1 = models.Threat(
-            event_type="BRUTE_FORCE",
-            source_ip="185.220.101.5",
-            target_username="root",
-            description="Possible brute-force login attack detected.",
-            severity="HIGH",
-            confidence=90,
-            status="ACTIVE",
-            first_seen=now - datetime.timedelta(minutes=15),
-            last_seen=now - datetime.timedelta(minutes=11),
-            event_count=5
-        )
-        db.add(threat1)
-        db.flush()
+        existing_threats_count = db.query(models.Threat).count()
+        if existing_threats_count == 0:
+            print("[*] Seeding correlated threats and alerts...")
+            threat1 = models.Threat(
+                event_type="BRUTE_FORCE",
+                source_ip="185.220.101.5",
+                target_username="root",
+                description="Possible brute-force login attack detected.",
+                severity="HIGH",
+                confidence=90,
+                status="ACTIVE",
+                first_seen=now - datetime.timedelta(minutes=15),
+                last_seen=now - datetime.timedelta(minutes=11),
+                event_count=5
+            )
+            db.add(threat1)
+            db.flush()
 
-        alert1 = models.Alert(
-            threat_id=threat1.id,
-            device_id="DEV-CORP-SOC-01",
-            title="HIGH Threat: Brute Force",
-            message="Possible brute-force login attack detected. Source IP: 185.220.101.5 targeting root.",
-            severity="HIGH",
-            status="NEW",
-            created_at=now - datetime.timedelta(minutes=11)
-        )
-        db.add(alert1)
+            alert1 = models.Alert(
+                threat_id=threat1.id,
+                device_id="DEV-CORP-SOC-01",
+                title="HIGH Threat: Brute Force",
+                message="Possible brute-force login attack detected. Source IP: 185.220.101.5 targeting root.",
+                severity="HIGH",
+                status="NEW",
+                created_at=now - datetime.timedelta(minutes=11)
+            )
+            db.add(alert1)
 
-        threat2 = models.Threat(
-            event_type="REQUEST_ABUSE",
-            source_ip="103.251.167.20",
-            target_username="api_client",
-            description="Abnormally high request rate detected.",
-            severity="HIGH",
-            confidence=85,
-            status="ACTIVE",
-            first_seen=now - datetime.timedelta(minutes=8),
-            last_seen=now - datetime.timedelta(minutes=8),
-            event_count=35
-        )
-        db.add(threat2)
-        db.flush()
+            threat2 = models.Threat(
+                event_type="REQUEST_ABUSE",
+                source_ip="103.251.167.20",
+                target_username="api_client",
+                description="Abnormally high request rate detected.",
+                severity="HIGH",
+                confidence=85,
+                status="ACTIVE",
+                first_seen=now - datetime.timedelta(minutes=8),
+                last_seen=now - datetime.timedelta(minutes=8),
+                event_count=35
+            )
+            db.add(threat2)
+            db.flush()
 
-        alert2 = models.Alert(
-            threat_id=threat2.id,
-            device_id="DEV-PROD-SRV-02",
-            title="HIGH Threat: Request Abuse",
-            message="Abnormally high request rate detected. Source IP: 103.251.167.20 targeting api_client.",
-            severity="HIGH",
-            status="ACKNOWLEDGED",
-            created_at=now - datetime.timedelta(minutes=8)
-        )
-        db.add(alert2)
+            alert2 = models.Alert(
+                threat_id=threat2.id,
+                device_id="DEV-PROD-SRV-02",
+                title="HIGH Threat: Request Abuse",
+                message="Abnormally high request rate detected. Source IP: 103.251.167.20 targeting api_client.",
+                severity="HIGH",
+                status="ACKNOWLEDGED",
+                created_at=now - datetime.timedelta(minutes=8)
+            )
+            db.add(alert2)
+        else:
+            print(f"[*] Correlated threats already present ({existing_threats_count} threats), skipping threat seeding.")
 
         db.commit()
         print("[+] Database seeding completed successfully!")

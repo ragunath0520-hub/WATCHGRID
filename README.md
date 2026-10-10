@@ -3,7 +3,7 @@
 [![Level 5 Academic Project](https://img.shields.io/badge/Academic%20Project-Level%205%20Cybersecurity-blue.svg)](#)
 [![Backend](https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.13-009688.svg)](#)
 [![Frontend](https://img.shields.io/badge/Frontend-Next.js%2014%20%7C%20TypeScript-000000.svg)](#)
-[![Database](https://img.shields.io/badge/Database-PostgreSQL%20%2F%20Neon-336791.svg)](#)
+[![Database](https://img.shields.io/badge/Database-SQLite%20(WAL%20Mode)-003B57.svg)](#)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
@@ -12,7 +12,7 @@
 
 Modern enterprise networks face distributed brute-force attacks, horizontal credential stuffing (multi-account spraying), automated endpoint crawling, and suspicious volume storms from adversarial source IPs. Traditional static log collection often suffers from high latency, alert fatigue, and lack of real-time event correlation.
 
-**WATCHGRID** is a distributed cybersecurity monitoring and autonomous threat detection platform. Lightweight external security agents running on distributed workstations stream encrypted telemetry over HTTPS to a high-throughput FastAPI ingestion layer. Incoming events are immediately evaluated by an autonomous sliding-window **Threat Detection Engine**, correlated against historical activity in a PostgreSQL database, deduplicated to eliminate alert storms, and presented to analysts in a modern, dark Security Operations Center (SOC) dashboard.
+**WATCHGRID** is a distributed cybersecurity monitoring and autonomous threat detection platform. Lightweight external security agents running on distributed workstations stream encrypted telemetry over HTTPS to a high-throughput FastAPI ingestion layer. Incoming events are immediately evaluated by an autonomous sliding-window **Threat Detection Engine**, correlated against historical activity in an embedded SQLite database with Write-Ahead Logging (WAL), deduplicated to eliminate alert storms, and presented to analysts in a modern, dark Security Operations Center (SOC) dashboard.
 
 ---
 
@@ -53,7 +53,7 @@ Modern enterprise networks face distributed brute-force attacks, horizontal cred
 
 ### Backend & API
 * **Language / Framework:** Python 3.13+, FastAPI, Uvicorn (ASGI)
-* **ORM & Database:** SQLAlchemy 2.0, PostgreSQL (Neon Serverless compatible), Psycopg3, SQLite (local fallback)
+* **ORM & Database:** SQLAlchemy 2.0, SQLite (WAL mode, high concurrency, zero-configuration)
 * **Validation & Security:** Pydantic v2, Passlib with Bcrypt password hashing, PyJWT / Python-Jose (HMAC-SHA256 JWT)
 * **Testing:** Pytest, FastApi TestClient, HTTPX
 
@@ -74,7 +74,13 @@ Modern enterprise networks face distributed brute-force attacks, horizontal cred
 
 ```
 WATCHGRID/
+├── docker-compose.yml           # Unified orchestration (Postgres, Backend, Frontend, Agent)
+├── .env.example                 # Root Docker environment variables template
+├── .dockerignore                # Root Docker build ignore patterns
 ├── backend/
+│   ├── Dockerfile               # Backend production container image
+│   ├── docker-entrypoint.sh     # DB readiness check & auto-seeding entrypoint
+│   ├── .dockerignore            # Backend container ignore patterns
 │   ├── main.py                  # FastAPI entrypoint, middleware, health check
 │   ├── database.py              # Database engine, connection pooling, SessionLocal
 │   ├── models.py                # SQLAlchemy ORM models (User, Device, Event, Threat, Alert)
@@ -103,6 +109,8 @@ WATCHGRID/
 │       └── device_service.py    # Fleet registry & offline calculation
 │
 ├── frontend/
+│   ├── Dockerfile               # Multi-stage Next.js standalone container image
+│   ├── .dockerignore            # Frontend container ignore patterns
 │   ├── app/
 │   │   ├── page.tsx             # Public landing page & architecture overview
 │   │   ├── login/page.tsx       # Operator login with demo credential quick-fills
@@ -135,6 +143,8 @@ WATCHGRID/
 │   └── tailwind.config.ts
 │
 ├── agent/
+│   ├── Dockerfile               # Agent simulation container image
+│   ├── .dockerignore            # Agent container ignore patterns
 │   ├── agent.py                 # Endpoint security agent & simulation runner
 │   ├── config.py                # Agent configuration & node ID generator
 │   ├── requirements.txt         # Agent dependencies (requests, psutil)
@@ -144,7 +154,7 @@ WATCHGRID/
 │   ├── architecture.md          # Detailed system architecture specification
 │   ├── api.md                   # Complete REST API endpoint reference
 │   ├── security.md              # Security model & threat detection formulas
-│   └── deployment.md            # Production deployment guide (Neon, Render, Vercel)
+│   └── deployment.md            # Production deployment guide (Docker, Neon, Render, Vercel)
 │
 ├── .gitignore                   # Ignores .env, venv/, node_modules/, *.db
 ├── README.md                    # Project documentation
@@ -170,15 +180,60 @@ To prevent alert fatigue in the SOC:
 
 ---
 
-## 6. Quick Start & Local Execution
+## 6. Quick Start & Execution
 
-### Prerequisites
+### Option A: 1-Command Startup via Docker Compose (Recommended)
+
+Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker Engine + Compose.
+
+```bash
+# 1. Clone repository
+git clone https://github.com/ragunath0520-hub/WATCHGRID.git
+cd WATCHGRID
+
+# 2. Build and launch the stack (FastAPI Backend with SQLite + Next.js 14 SOC)
+docker compose up --build -d
+
+# 3. View live logs across all containers
+docker compose logs -f
+```
+
+All services are instantly available:
+* **SOC Operations Dashboard:** `http://localhost:3000`
+* **FastAPI Backend & Interactive Swagger UI:** `http://localhost:8000/docs`
+* **Health Check & Diagnostics:** `http://localhost:8000/health`
+* **SQLite Database:** Automatically created in persistent volume (`/app/data/watchgrid.db`), seeded with default users and baseline telemetry
+
+#### Testing Attacks with the Docker Security Agent
+```bash
+# Launch background telemetry sensor daemon
+docker compose --profile agent up -d
+
+# Execute simulated cyber attack vectors
+docker compose run --rm agent python agent.py --test-bruteforce
+docker compose run --rm agent python agent.py --test-request-abuse
+docker compose run --rm agent python agent.py --test-multi-account
+```
+
+#### Stopping the Docker Stack
+```bash
+docker compose down
+
+# To also clear PostgreSQL database volume:
+docker compose down -v
+```
+
+---
+
+### Option B: Manual Local Development
+
+#### Prerequisites
 * Python 3.10+ (Python 3.13 tested)
 * Node.js 18+ and npm 9+
 
 ---
 
-### Step 1: Start the Backend
+#### Step 1: Start the Backend
 
 ```bash
 cd backend

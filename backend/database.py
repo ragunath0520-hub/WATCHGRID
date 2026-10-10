@@ -1,7 +1,8 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 # Load environment variables from .env
@@ -10,31 +11,34 @@ load_dotenv(dotenv_path=env_path)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./watchgrid.db")
 
-# Normalize Postgres driver scheme if needed (Neon / Render standard)
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
-elif DATABASE_URL.startswith("postgresql://") and not (
-    DATABASE_URL.startswith("postgresql+psycopg://") or DATABASE_URL.startswith("postgresql+asyncpg://")
-):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
-
-# Handle engine configuration depending on dialect
+# Ensure directory exists for file-based SQLite database
 connect_args = {}
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
+    raw_path = DATABASE_URL.replace("sqlite:////", "/").replace("sqlite:///", "")
+    if raw_path and raw_path != ":memory:":
+        parent_dir = Path(raw_path).parent
+        if parent_dir and str(parent_dir) not in ("", "."):
+            parent_dir.mkdir(parents=True, exist_ok=True)
 
-try:
-    engine = create_engine(
-        DATABASE_URL,
-        connect_args=connect_args,
-        pool_pre_ping=True,
-        echo=False
-    )
-except Exception as e:
-    # Fallback to local SQLite if remote database connection creation encounters initial driver syntax error
-    print(f"[WATCHGRID DB WARNING] Falling back to SQLite due to driver error: {e}")
-    DATABASE_URL = "sqlite:///./watchgrid.db"
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False}, pool_pre_ping=True)
+engine = create_engine(
+    DATABASE_URL,
+    connect_args=connect_args,
+    pool_pre_ping=True,
+    echo=False
+)
+
+# Enable SQLite Write-Ahead Logging (WAL) and foreign keys for high concurrent throughput
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    if DATABASE_URL.startswith("sqlite"):
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.execute("PRAGMA synchronous=NORMAL")
+        finally:
+            cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
