@@ -1,0 +1,44 @@
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+*.env
+backend/.env
+
+# Python
+backend/venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+*.sqlite
+*.sqlite3
+*.db
+
+# Node.js / Frontend
+node_modules/
+frontend/node_modules/
+.next/
+frontend/.next/
+out/
+frontend/out/
+build/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
